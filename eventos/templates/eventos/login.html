@@ -1,0 +1,65 @@
+{% extends 'eventos/base.html' %}
+
+{% block content %}
+<div style="max-width: 400px; margin: 50px auto; padding: 20px; border: 1px solid #ccc; border-radius: 10px; background-color: white;">
+    <h2 style="text-align: center;">Iniciar Sesión</h2>
+    
+    <form id="loginForm">
+        <div style="margin-bottom: 15px;">
+            <label>Usuario:</label>
+            <input type="text" id="username" style="width: 100%; padding: 8px; box-sizing: border-box;" required>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label>Contraseña:</label>
+            <input type="password" id="password" style="width: 100%; padding: 8px; box-sizing: border-box;" required>
+        </div>
+        <p id="error-msg" style="color: red; display: none;"></p>
+        <button type="submit" style="width: 100%; padding: 10px; background-color: #1d3557; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
+            Ingresar
+        </button>
+    </form>
+    <div style="text-align: center; margin-top: 15px;">
+        <a href="/registro/" style="font-size: 14px; color: #1d3557;">¿No tienes cuenta? Regístrate aquí</a>
+    </div>
+    
+</div>
+
+<script>
+    // -------------------------------------------------------------------
+    // BLOQUE DE LÓGICA: AUTENTICACIÓN JWT FRONTEND
+    // 1. Evita que la página recargue.
+    // 2. Envía credenciales al endpoint /api/token/ configurado en DRF.
+    // 3. Guarda los tokens en localStorage para usarlos en futuras peticiones.
+    // -------------------------------------------------------------------
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        e.preventDefault(); // Evita recargar la página
+        
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+
+        try {
+            const response = await fetch('/api/token/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Guardamos los JWT en el almacenamiento del navegador
+                localStorage.setItem('access_token', data.access);
+                localStorage.setItem('refresh_token', data.refresh);
+                // Redirigimos al catálogo
+                window.location.href = '/';
+            } else {
+                document.getElementById('error-msg').innerText = "Credenciales incorrectas.";
+                document.getElementById('error-msg').style.display = "block";
+            }
+        } catch (error) {
+            console.error("Error al conectar con la API", error);
+        }
+    });
+</script>
+{% endblock %}

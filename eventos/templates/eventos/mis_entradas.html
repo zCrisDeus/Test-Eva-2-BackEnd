@@ -1,0 +1,63 @@
+{% extends 'eventos/base.html' %}
+
+{% block content %}
+<div style="margin-bottom: 20px;">
+    <h2 style="color: #1d3557;">🎟️ Mis Entradas Compradas</h2>
+    <p>Historial de compras y códigos únicos (UUID) válidos para ingreso.</p>
+</div>
+
+<div id="contenedor-ordenes">
+    <p>Cargando historial...</p>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        const token = localStorage.getItem('access_token');
+        if (!token) { window.location.href = '/login/'; return; }
+
+        const contenedor = document.getElementById('contenedor-ordenes');
+
+        try {
+            const response = await fetch('/api/ordenes/', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            const ordenes = await response.json();
+            contenedor.innerHTML = '';
+
+            if (ordenes.length === 0) {
+                contenedor.innerHTML = '<p>Aún no has comprado entradas.</p>';
+                return;
+            }
+
+            ordenes.forEach(orden => {
+                const fecha = new Date(orden.fecha_orden).toLocaleString('es-CL');
+                let entradasHTML = '';
+                
+                orden.entradas.forEach(entrada => {
+                    entradasHTML += `
+                        <div style="background-color: #f1faee; padding: 10px; margin-top: 5px; border-radius: 5px; border-left: 4px solid #1d3557; font-family: monospace;">
+                            <strong>🎫 Evento:</strong> ${entrada.evento_nombre} | <strong>Sector:</strong> ${entrada.sector_nombre}<br>
+                            <span style="color: #e63946;">UUID: ${entrada.codigo_uuid}</span>
+                        </div>
+                    `;
+                });
+
+                const ordenHTML = `
+                    <div style="background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; border: 1px solid #ddd;">
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px;">
+                            <strong style="color: #457b9d;">Orden #${orden.id} - ${fecha}</strong>
+                            <strong style="color: #1d3557;">Total Pagado: $${orden.total.toLocaleString('es-CL')}</strong>
+                        </div>
+                        ${entradasHTML}
+                    </div>
+                `;
+                contenedor.innerHTML += ordenHTML;
+            });
+
+        } catch (error) {
+            console.error(error);
+            contenedor.innerHTML = '<p style="color:red;">Error al cargar las entradas.</p>';
+        }
+    });
+</script>
+{% endblock %}

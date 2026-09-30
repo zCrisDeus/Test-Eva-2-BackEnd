@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TicketsApp</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; background-color: #f4f4f9; }
+        .header { background-color: #2b2d42; color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+        .header a { color: white; text-decoration: none; font-weight: bold; }
+        main { flex: 1; padding: 20px; max-width: 1000px; margin: 0 auto; width: 100%; }
+        .footer { background-color: #8d99ae; color: white; text-align: center; padding: 15px; margin-top: auto; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="{% url 'inicio' %}"><h2>🎟️ TicketsApp</h2></a>
+        <div id="nav-links">
+            <a href="{% url 'inicio' %}">Catálogo</a>
+            <!-- El menú se inyectará aquí dinámicamente -->
+        </div>
+    </div>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>Cristóbal Carrasco | AP-N4-C2 | 2026</p>
+    </footer>
+
+    <script>
+        // Lógica global para verificar la sesión JWT
+        document.addEventListener('DOMContentLoaded', () => {
+            const navLinks = document.getElementById('nav-links');
+            const token = localStorage.getItem('access_token');
+            
+            // Catálogo siempre es visible
+            let menuHTML = `<a href="/">Catálogo</a>`;
+
+            if (token) {
+                try {
+                    // Decodificar el JWT
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    
+                    menuHTML += `<span style="color: #a8dadc; margin-left:15px;">Hola, ${payload.username} (${payload.rol})</span>`;
+                    
+                    // Mostramos opciones según el Rol inyectado en el JWT
+                    if (payload.rol === 'ESPECTADOR') {
+                        menuHTML += `<a href="/carro/" style="color: #e63946; margin-left: 15px;">🛒 Mi Carro</a>`;
+                        menuHTML += `<a href="/mis-entradas/" style="color: #457b9d; margin-left: 15px;">🎟️ Mis Entradas</a>`;
+                    } else if (payload.rol === 'ORGANIZADOR') {
+                        menuHTML += `<a href="/crear-evento/" style="color: #fca311; margin-left: 15px;">➕ Crear Evento</a>`;
+                        menuHTML += `<a href="/gestion/" style="color: #e63946; margin-left: 15px;">⚙️ Gestión Avanzada</a>`; 
+                        menuHTML += `<a href="/api/docs/" target="_blank" style="color: #457b9d; margin-left: 15px;">📚 Docs API</a>`;
+                    }
+                    
+                    menuHTML += `<a href="#" onclick="cerrarSesion()" style="margin-left: 15px; text-decoration: underline;">Cerrar Sesión</a>`;
+                } catch (e) {
+                    console.error("Error en JWT:", e);
+                    localStorage.removeItem('access_token');
+                    menuHTML += `<a href="/login/" style="margin-left: 15px;">Iniciar Sesión</a>`;
+                }
+            } else {
+                menuHTML += `<a href="/login/" style="margin-left: 15px;">Iniciar Sesión</a>`;
+            }
+
+            navLinks.innerHTML = menuHTML;
+        });
+
+        function cerrarSesion() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            window.location.href = '/login/';
+        }
+    </script>
+    
+    <!-- ======================================================== -->
+    <!-- NUEVO SCRIPT DE NOTIFICACIONES GLOBALES (PASO 5)         -->
+    <!-- ======================================================== -->
+    <script>
+        // Este script revisa si hay notificaciones pendientes cada vez que el usuario carga una página
+        document.addEventListener('DOMContentLoaded', async () => {
+            const token = localStorage.getItem('access_token');
+            
+            // Solo verificamos si el usuario tiene sesión iniciada
+            if (token) {
+                try {
+                    const res = await fetch('/api/notificaciones/', {
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        // Si el backend envía mensajes, los mostramos uno por uno
+                        if (data.notificaciones && data.notificaciones.length > 0) {
+                            data.notificaciones.forEach(mensaje => {
+                                alert(mensaje);
+                            });
+                        }
+                    }
+                } catch(e) { console.error("Error al buscar notificaciones:", e); }
+            }
+        });
+    </script>
+
+</body>
+</html>

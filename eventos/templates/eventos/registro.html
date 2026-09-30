@@ -1,0 +1,63 @@
+{% extends 'eventos/base.html' %}
+
+{% block content %}
+<div style="max-width: 400px; margin: 50px auto; padding: 20px; border: 1px solid #ccc; border-radius: 10px; background-color: white;">
+    <h2 style="text-align: center; color: #1d3557;">Crear Cuenta</h2>
+    <p style="text-align: center; font-size: 14px; color: #555;">Regístrate como Espectador para comprar tickets.</p>
+    
+    <form id="registroForm">
+        <div style="margin-bottom: 15px;">
+            <label>Nombre de Usuario:</label>
+            <input type="text" id="reg-username" style="width: 100%; padding: 8px; box-sizing: border-box;" required>
+        </div>
+        
+        <!-- Nuevo campo de correo -->
+        <div style="margin-bottom: 15px;">
+            <label>Correo Electrónico:</label>
+            <input type="email" id="reg-email" style="width: 100%; padding: 8px; box-sizing: border-box;" required>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label>Crea una Contraseña:</label>
+            <input type="password" id="reg-password" style="width: 100%; padding: 8px; box-sizing: border-box;" required>
+        </div>
+        <p id="reg-error" style="color: red; display: none; font-size: 14px;"></p>
+        <button type="submit" style="width: 100%; padding: 10px; background-color: #457b9d; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
+            Registrarse
+        </button>
+    </form>
+    <div style="text-align: center; margin-top: 15px;">
+        <a href="{% url 'login' %}" style="font-size: 14px; color: #1d3557;">¿Ya tienes cuenta? Inicia sesión aquí</a>
+    </div>
+</div>
+
+<script>
+    document.getElementById('registroForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const username = document.getElementById('reg-username').value;
+        const email = document.getElementById('reg-email').value; // Capturamos el correo
+        const password = document.getElementById('reg-password').value;
+
+        try {
+            const response = await fetch('/api/registro/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, email, password }) // Lo enviamos en el JSON
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert(data.mensaje);
+                window.location.href = '/login/'; // Enviamos al usuario a loguearse
+            } else {
+                document.getElementById('reg-error').innerText = data.error;
+                document.getElementById('reg-error').style.display = "block";
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,155 @@
+{% extends 'eventos/base.html' %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 20px auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid #ccc;">
+    <h2 style="color: #1d3557; margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px;">🛒 Mi Carro de Compras</h2>
+    
+    <div id="carro-container">
+        <p style="color: #777;">Cargando...</p>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', cargarCarro);
+
+    async function cargarCarro() {
+        const token = localStorage.getItem('access_token');
+        if (!token) { window.location.href = '/login/'; return; }
+        
+        const container = document.getElementById('carro-container');
+
+        try {
+            const response = await fetch('/api/carro/', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            const data = await response.json();
+            
+            // 1. RASTREADOR INTELIGENTE DEL ARRAY
+            let items = [];
+            
+            // Si es un array directamente
+            if (Array.isArray(data)) {
+                items = data;
+                // Si la API envolvió el carrito en un array de 1 elemento (Ej. [{ "detalles": [...] }])
+                if (items.length === 1 && typeof items[0] === 'object' && !items[0].cantidad && !items[0].sector) {
+                    for (let key in items[0]) {
+                        if (Array.isArray(items[0][key])) { items = items[0][key]; break; }
+                    }
+                }
+            } 
+            // Si la API envió un objeto (Ej. { "carro_id": 1, "items": [...] })
+            else if (data && typeof data === 'object') {
+                for (let key in data) {
+                    if (Array.isArray(data[key])) { items = data[key]; break; }
+                }
+            }
+
+            if (!items || items.length === 0) {
+                container.innerHTML = '<p style="padding: 20px 0; color: #555;">Tu carro está vacío. ¡Ve al catálogo para buscar eventos!</p>';
+                return;
+            }
+
+            // MODO DEPURACIÓN: Si el primer elemento sigue siendo irreconocible, mostramos el JSON crudo en pantalla
+            if (items[0].cantidad === undefined && items[0].sector === undefined && items[0].nombre === undefined) {
+                container.innerHTML = `
+                    <div style="background: #ffebee; padding: 15px; border-radius: 5px; color: #c62828;">
+                        <strong>¡Modo Depuración Activado!</strong><br>
+                        El formato de los datos no coincide con lo esperado. Toma una captura de esto:<br>
+                        <pre style="background: #fff; padding: 10px; border: 1px solid #ffcdd2; margin-top: 10px; overflow-x: auto;">${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            let total = 0;
+
+            items.forEach(item => {
+                // 2. EXTRACCIÓN A PRUEBA DE FALLOS
+                const cantidad = parseInt(item.cantidad) || parseInt(item.quantity) || parseInt(item.cant) || 1;
+                
+                let nombreSector = 'Ticket';
+                let precio = 0;
+
+                // Caso A: El sector es un objeto anidado { sector: { nombre: 'VIP', precio: 1000 } }
+                if (item.sector && typeof item.sector === 'object') {
+                    nombreSector = item.sector.nombre || item.sector.name || 'Ticket';
+                    precio = parseInt(item.sector.precio) || parseInt(item.sector.price) || 0;
+                } 
+                // Caso B: Viene de un values() de Django { sector__nombre: 'VIP' }
+                else if (item.sector__nombre || item.sector__precio) {
+                    nombreSector = item.sector__nombre || 'Ticket';
+                    precio = parseInt(item.sector__precio) || 0;
+                }
+                // Caso C: Campos aplanados { sector_nombre: 'VIP', precio: 1000 }
+                else {
+                    nombreSector = item.sector_nombre || item.nombre_sector || item.sector || item.nombre || 'Ticket';
+                    precio = parseInt(item.precio) || parseInt(item.precio_sector) || parseInt(item.sector_precio) || 0;
+                }
+
+                const subtotal = item.subtotal ? parseInt(item.subtotal) : (precio * cantidad);
+                total += subtotal;
+
+                html += `
+                    <div style="border-bottom: 1px solid #eee; padding: 15px 0; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong style="color: #457b9d; font-size: 18px;">${nombreSector}</strong><br>
+                            <span style="color: #555;">Cantidad: ${cantidad}</span>
+                        </div>
+                        <div style="text-align: right;">
+                            <strong style="font-size: 16px; color: #111;">$${subtotal.toLocaleString('es-CL')}</strong>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                <div style="margin-top: 25px; text-align: right; border-top: 2px solid #ccc; padding-top: 20px;">
+                    <h3 style="color: #1d3557; margin-bottom: 15px; font-size: 22px;">Total a Pagar: $${total.toLocaleString('es-CL')}</h3>
+                    <button id="btn-pagar" onclick="procesarCheckout()" style="background-color: #e63946; color: white; border: none; padding: 12px 30px; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%; transition: 0.2s;">
+                        Pagar
+                    </button>
+                </div>
+            `;
+
+            container.innerHTML = html;
+
+        } catch (error) {
+            console.error(error);
+            container.innerHTML = '<p style="color: red;">Ocurrió un error al cargar tu carro.</p>';
+        }
+    }
+
+    async function procesarCheckout() {
+        const token = localStorage.getItem('access_token');
+        const btnPagar = document.getElementById('btn-pagar');
+        
+        alert("⏳ Transacción pendiente, espere por favor...");
+        if(btnPagar) {
+            btnPagar.innerText = "Procesando...";
+            btnPagar.disabled = true;
+            btnPagar.style.backgroundColor = "#ccc";
+        }
+
+        try {
+            const response = await fetch('/api/checkout/', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            const data = await response.json();
+            
+            if (response.ok) {
+                alert("✅ Tu orden ha sido enviada al administrador y está PENDIENTE de aprobación.");
+                window.location.href = '/mis-entradas/';
+            } else {
+                alert("❌ Error: " + (data.error || "No se pudo procesar la compra."));
+                if(btnPagar) { btnPagar.innerText = "Pagar"; btnPagar.disabled = false; btnPagar.style.backgroundColor = "#e63946"; }
+            }
+        } catch (error) { 
+            console.error(error);
+            alert("❌ Ocurrió un error de conexión con el servidor.");
+            if(btnPagar) { btnPagar.innerText = "Pagar"; btnPagar.disabled = false; btnPagar.style.backgroundColor = "#e63946"; }
+        }
+    }
+</script>
+{% endblock %}

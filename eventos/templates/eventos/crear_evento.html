@@ -1,0 +1,208 @@
+{% extends 'eventos/base.html' %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 20px auto; padding: 25px; border: 1px solid #ccc; border-radius: 10px; background-color: white;">
+    <h2 style="color: #1d3557; margin-top: 0;">➕ Publicar Nuevo Evento</h2>
+    <p style="color: #555; font-size: 14px;">Completa los datos del evento y agrega las localidades necesarias.</p>
+    
+    <form id="crearEventoForm">
+        <!-- DATOS DEL EVENTO -->
+        <h4 style="color: #457b9d; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;">Detalles del Evento</h4>
+        
+        <label>Nombre del Evento:</label>
+        <input type="text" id="ev-nombre" required style="width: 100%; padding: 8px; margin-bottom: 15px; box-sizing: border-box;">
+        
+        <label>Fecha y Hora:</label>
+        <input type="datetime-local" id="ev-fecha" required style="width: 100%; padding: 8px; margin-bottom: 15px; box-sizing: border-box;">
+        
+        <label>Seleccionar Artista:</label>
+        <select id="ev-artista" required style="width: 100%; padding: 8px; margin-bottom: 15px; box-sizing: border-box;">
+            <option value="">Cargando artistas...</option>
+        </select>
+
+        <label>Seleccionar Recinto:</label>
+        <select id="ev-recinto" required style="width: 100%; padding: 8px; margin-bottom: 25px; box-sizing: border-box;">
+            <option value="">Cargando recintos...</option>
+        </select>
+
+        <!-- CONTENEDOR DE MÚLTIPLES SECTORES -->
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; margin-bottom: 15px; padding-bottom: 5px;">
+            <h4 style="color: #457b9d; margin: 0;">Localidades (Sectores)</h4>
+            <button type="button" id="btn-add-sector" style="background: #457b9d; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">
+                ➕ Agregar otro sector
+            </button>
+        </div>
+        
+        <div id="sectores-container">
+            <!-- Sector Base 1 -->
+            <div class="sector-item" style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #ddd;">
+                <label>Nombre del Sector (Ej. Cancha General):</label>
+                <input type="text" class="sec-nombre" required style="width: 100%; padding: 8px; margin-bottom: 15px; box-sizing: border-box;">
+                
+                <div style="display: flex; gap: 15px;">
+                    <div style="flex: 1;">
+                        <label>Precio ($):</label>
+                        <input type="number" class="sec-precio" min="1" required style="width: 100%; padding: 8px; box-sizing: border-box;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Stock Total:</label>
+                        <input type="number" class="sec-stock" min="1" required style="width: 100%; padding: 8px; box-sizing: border-box;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" style="width: 100%; padding: 12px; background-color: #fca311; color: #1d3557; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px; margin-top: 10px;">
+            Crear Evento en Catálogo
+        </button>
+    </form>
+</div>
+
+<script>
+    const token = localStorage.getItem('access_token');
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        if (!token) { window.location.href = '/login/'; return; }
+
+        try {
+            const response = await fetch('/api/datos-formulario/', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (response.status === 403) {
+                alert("Acceso denegado: Solo los Organizadores pueden crear eventos.");
+                window.location.href = '/'; return;
+            }
+            const data = await response.json();
+            
+            // --- CARGA DE ARTISTAS ---
+            const selectArtista = document.getElementById('ev-artista');
+            selectArtista.innerHTML = '<option value="">-- Seleccione un Artista --</option><option value="nuevo" style="font-weight: bold; color: #457b9d;">➕ Crear Nuevo Artista</option>';
+            data.artistas.forEach(a => { selectArtista.innerHTML += `<option value="${a.id}">${a.nombre}</option>`; });
+
+            selectArtista.addEventListener('change', async function(e) {
+                if (e.target.value === 'nuevo') {
+                    const nuevoNombre = prompt("🎵 Ingresa el nombre del nuevo artista:");
+                    if (nuevoNombre && nuevoNombre.trim() !== "") {
+                        try {
+                            const res = await fetch('/api/crear-artista/', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                                body: JSON.stringify({ nombre: nuevoNombre.trim() })
+                            });
+                            const dataRes = await res.json();
+                            if (res.ok) {
+                                selectArtista.add(new Option(dataRes.nombre, dataRes.id));
+                                selectArtista.value = dataRes.id;
+                                alert("✅ " + dataRes.mensaje);
+                            } else { alert("❌ Error: " + dataRes.error); selectArtista.value = ""; }
+                        } catch (err) { console.error(err); selectArtista.value = ""; }
+                    } else { selectArtista.value = ""; }
+                }
+            });
+
+            // --- CARGA DE RECINTOS ---
+            const selectRecinto = document.getElementById('ev-recinto');
+            selectRecinto.innerHTML = '<option value="">-- Seleccione un Recinto --</option><option value="nuevo" style="font-weight: bold; color: #457b9d;">➕ Crear Nuevo Recinto</option>';
+            data.recintos.forEach(r => { selectRecinto.innerHTML += `<option value="${r.id}">${r.nombre}</option>`; });
+
+            selectRecinto.addEventListener('change', async function(e) {
+                if (e.target.value === 'nuevo') {
+                    const nuevoNombre = prompt("📍 Ingresa el nombre del nuevo recinto:");
+                    if (nuevoNombre && nuevoNombre.trim() !== "") {
+                        const nuevaCiudad = prompt("📍 Ingresa la ciudad donde está ubicado:");
+                        try {
+                            const res = await fetch('/api/crear-recinto/', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                                body: JSON.stringify({ nombre: nuevoNombre.trim(), ciudad: nuevaCiudad ? nuevaCiudad.trim() : "Desconocida" })
+                            });
+                            const dataRes = await res.json();
+                            if (res.ok) {
+                                selectRecinto.add(new Option(dataRes.nombre, dataRes.id));
+                                selectRecinto.value = dataRes.id;
+                                alert("✅ " + dataRes.mensaje);
+                            } else { alert("❌ Error: " + dataRes.error); selectRecinto.value = ""; }
+                        } catch (err) { console.error(err); selectRecinto.value = ""; }
+                    } else { selectRecinto.value = ""; }
+                }
+            });
+        } catch (error) { console.error(error); }
+    });
+
+    // --- LÓGICA PARA AGREGAR MÁS SECTORES DINÁMICAMENTE ---
+    document.getElementById('btn-add-sector').addEventListener('click', function() {
+        const container = document.getElementById('sectores-container');
+        const newDiv = document.createElement('div');
+        newDiv.className = 'sector-item';
+        newDiv.style.cssText = 'background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #ddd; position: relative;';
+        
+        newDiv.innerHTML = `
+            <button type="button" class="btn-remove" style="position: absolute; top: 10px; right: 10px; background: #e63946; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">❌ Quitar</button>
+            <label>Nombre del Sector (Ej. VIP):</label>
+            <input type="text" class="sec-nombre" required style="width: 100%; padding: 8px; margin-bottom: 15px; box-sizing: border-box;">
+            
+            <div style="display: flex; gap: 15px;">
+                <div style="flex: 1;">
+                    <label>Precio ($):</label>
+                    <input type="number" class="sec-precio" min="1" required style="width: 100%; padding: 8px; box-sizing: border-box;">
+                </div>
+                <div style="flex: 1;">
+                    <label>Stock Total:</label>
+                    <input type="number" class="sec-stock" min="1" required style="width: 100%; padding: 8px; box-sizing: border-box;">
+                </div>
+            </div>
+        `;
+        container.appendChild(newDiv);
+
+        newDiv.querySelector('.btn-remove').addEventListener('click', function() {
+            newDiv.remove();
+        });
+    });
+
+    // --- ENVIAR EVENTO Y TODOS SUS SECTORES AL BACKEND ---
+    document.getElementById('crearEventoForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        // Empaquetar los datos de todos los sectores agregados
+        const sectoresDivs = document.querySelectorAll('.sector-item');
+        const arraySectores = [];
+        
+        sectoresDivs.forEach(div => {
+            arraySectores.push({
+                nombre: div.querySelector('.sec-nombre').value,
+                precio: div.querySelector('.sec-precio').value,
+                stock: div.querySelector('.sec-stock').value
+            });
+        });
+
+        const payload = {
+            nombre: document.getElementById('ev-nombre').value,
+            fecha_hora: document.getElementById('ev-fecha').value,
+            artista_id: document.getElementById('ev-artista').value,
+            recinto_id: document.getElementById('ev-recinto').value,
+            sectores: arraySectores // Pasamos la lista completa de sectores
+        };
+
+        if (payload.artista_id === "nuevo" || payload.recinto_id === "nuevo") {
+            alert("⚠️ Debes seleccionar un artista y recinto válidos, o crearlos.");
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/crear-evento/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                alert("✅ " + data.mensaje);
+                window.location.href = '/'; 
+            } else {
+                alert("❌ Error: " + data.error);
+            }
+        } catch (error) { console.error(error); }
+    });
+</script>
+{% endblock %}
